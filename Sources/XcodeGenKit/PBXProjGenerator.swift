@@ -1460,46 +1460,55 @@ public class PBXProjGenerator {
         let synchronizedRootGroups = sourceFiles.compactMap { $0.fileReference as? PBXFileSystemSynchronizedRootGroup }
         if !synchronizedRootGroups.isEmpty {
             for syncedGroup in synchronizedRootGroups {
-                guard let syncedGroupPath = syncedGroup.path else { continue }
-                let syncedPath = (project.basePath + Path(syncedGroupPath)).normalize()
-
-                if let targetSource = target.sources.first(where: { 
-                    let sourcePath = (project.basePath + $0.path).normalize()
-                    return sourcePath == syncedPath
-                }) {
-                    var membershipExceptions = targetSource.excludes
-
-                    for infoPlistPath in infoPlistFiles.values {
-                        let infoPlistFullPath = (project.basePath + infoPlistPath).normalize()
-                        if infoPlistFullPath.string.hasPrefix(syncedPath.string + "/") {
-                            if let relativePath = try? infoPlistFullPath.relativePath(from: syncedPath) {
-                                let relativePathString = relativePath.string
-                                if !membershipExceptions.contains(relativePathString) {
-                                    membershipExceptions.append(relativePathString)
-                                }
-                            }
-                        }
-                    }
-
-                    if !membershipExceptions.isEmpty {
-                        let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
-                            target: targetObject,
-                            membershipExceptions: membershipExceptions,
-                            publicHeaders: nil,
-                            privateHeaders: nil,
-                            additionalCompilerFlagsByRelativePath: nil,
-                            attributesByRelativePath: nil
-                        )
-                        addObject(exceptionSet)
-                        if syncedGroup.exceptions == nil {
-                            syncedGroup.exceptions = []
-                        }
-                        syncedGroup.exceptions?.append(exceptionSet)
-                    }
-                }
+                configureMembershipExceptions(
+                    for: syncedGroup,
+                    target: target,
+                    targetObject: targetObject,
+                    infoPlistFiles: infoPlistFiles
+                )
             }
             targetObject.fileSystemSynchronizedGroups = synchronizedRootGroups
         }
+    }
+
+    private func configureMembershipExceptions(
+        for syncedGroup: PBXFileSystemSynchronizedRootGroup,
+        target: Target,
+        targetObject: PBXTarget,
+        infoPlistFiles: [Config: String]
+    ) {
+        guard let syncedGroupPath = syncedGroup.path else { return }
+        let syncedPath = (project.basePath + Path(syncedGroupPath)).normalize()
+
+        guard let targetSource = target.sources.first(where: {
+            (project.basePath + $0.path).normalize() == syncedPath
+        }) else { return }
+
+        var exceptions: Set<String> = Set(
+            sourceGenerator.expandedExcludes(for: targetSource)
+                .compactMap { try? $0.relativePath(from: syncedPath).string }
+        )
+
+        for infoPlistPath in Set(infoPlistFiles.values) {
+            let relative = try? (project.basePath + infoPlistPath).normalize()
+                .relativePath(from: syncedPath)
+            if let rel = relative?.string, !rel.hasPrefix("..") {
+                exceptions.insert(rel)
+            }
+        }
+
+        guard !exceptions.isEmpty else { return }
+
+        let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
+            target: targetObject,
+            membershipExceptions: exceptions.sorted(),
+            publicHeaders: nil,
+            privateHeaders: nil,
+            additionalCompilerFlagsByRelativePath: nil,
+            attributesByRelativePath: nil
+        )
+        addObject(exceptionSet)
+        syncedGroup.exceptions = (syncedGroup.exceptions ?? []) + [exceptionSet]
     }
     
     private func makePlatformFilter(for filter: Dependency.PlatformFilter) -> String? {
