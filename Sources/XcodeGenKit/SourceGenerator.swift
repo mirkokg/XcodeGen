@@ -372,11 +372,6 @@ class SourceGenerator {
         return variantGroup
     }
 
-    /// Returns the expanded set of excluded paths for a target source by resolving its exclude glob patterns.
-    func expandedExcludes(for targetSource: TargetSource) -> Set<Path> {
-        getSourceMatches(targetSource: targetSource, patterns: targetSource.excludes)
-    }
-
     /// Collects all the excluded paths within the targetSource
     private func getSourceMatches(targetSource: TargetSource, patterns: [String]) -> Set<Path> {
         let rootSourcePath = project.basePath + targetSource.path
