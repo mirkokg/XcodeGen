@@ -3,6 +3,36 @@ import JSONUtilities
 import PathKit
 import XcodeProj
 
+public func convertToBuildSettings(_ dictionary: [String: Any]) -> BuildSettings {
+    var result: BuildSettings = [:]
+    for (key, value) in dictionary {
+        switch value {
+        case let stringValue as String:
+            result[key] = .string(stringValue)
+        case let arrayValue as [String]:
+            result[key] = .array(arrayValue)
+        case let boolValue as Bool:
+            result[key] = boolValue ? .string("YES") : .string("NO")
+        default:
+            result[key] = .string("\(value)")
+        }
+    }
+    return result
+}
+
+public func buildSettingsToAny(_ settings: BuildSettings) -> [String: Any] {
+    var result: [String: Any] = [:]
+    for (key, value) in settings {
+        switch value {
+        case .string(let s):
+            result[key] = s
+        case .array(let a):
+            result[key] = a
+        }
+    }
+    return result
+}
+
 public struct Settings: Equatable, JSONObjectConvertible, CustomStringConvertible {
 
     public var buildSettings: BuildSettings
@@ -16,7 +46,7 @@ public struct Settings: Equatable, JSONObjectConvertible, CustomStringConvertibl
     }
 
     public init(dictionary: [String: Any]) {
-        buildSettings = dictionary
+        buildSettings = convertToBuildSettings(dictionary)
         configSettings = [:]
         groups = []
     }
@@ -27,11 +57,11 @@ public struct Settings: Equatable, JSONObjectConvertible, CustomStringConvertibl
         if jsonDictionary["configs"] != nil || jsonDictionary["groups"] != nil || jsonDictionary["base"] != nil {
             groups = jsonDictionary.json(atKeyPath: "groups") ?? jsonDictionary.json(atKeyPath: "presets") ?? []
             let buildSettingsDictionary: JSONDictionary = jsonDictionary.json(atKeyPath: "base") ?? [:]
-            buildSettings = buildSettingsDictionary
+            buildSettings = convertToBuildSettings(buildSettingsDictionary)
 
             self.configSettings = try Self.extractValidConfigs(from: jsonDictionary)
         } else {
-            buildSettings = jsonDictionary
+            buildSettings = convertToBuildSettings(jsonDictionary)
             configSettings = [:]
             groups = []
         }
@@ -58,7 +88,7 @@ public struct Settings: Equatable, JSONObjectConvertible, CustomStringConvertibl
     }
 
     public static func == (lhs: Settings, rhs: Settings) -> Bool {
-        NSDictionary(dictionary: lhs.buildSettings).isEqual(to: rhs.buildSettings) &&
+        lhs.buildSettings == rhs.buildSettings &&
             lhs.configSettings == rhs.configSettings &&
             lhs.groups == rhs.groups
     }
@@ -116,9 +146,12 @@ extension Dictionary where Key == String, Value: Any {
             self[key] = value
         }
     }
+}
+
+extension Dictionary where Key == String, Value == BuildSetting {
 
     public func equals(_ dictionary: BuildSettings) -> Bool {
-        NSDictionary(dictionary: self).isEqual(to: dictionary)
+        self == dictionary
     }
 }
 
@@ -131,11 +164,11 @@ extension Settings: JSONEncodable {
     public func toJSONValue() -> Any {
         if groups.count > 0 || configSettings.count > 0 {
             return [
-                "base": buildSettings,
+                "base": buildSettingsToAny(buildSettings),
                 "groups": groups,
                 "configs": configSettings.mapValues { $0.toJSONValue() },
             ] as [String : Any]
         }
-        return buildSettings
+        return buildSettingsToAny(buildSettings)
     }
 }

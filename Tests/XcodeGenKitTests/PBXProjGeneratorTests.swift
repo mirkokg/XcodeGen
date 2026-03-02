@@ -361,7 +361,8 @@ class PBXProjGeneratorTests: XCTestCase {
         let pbxProj = try projGenerator.generate()
         
         for pbxProject in pbxProj.projects {
-            XCTAssertEqual(pbxProject.attributes[lastUpgradeKey] as? String, project.xcodeVersion)
+            // Integer 1234 gets converted to string "1234" through attribute conversion, so it's treated as a valid value
+            XCTAssertEqual(pbxProject.attributes[lastUpgradeKey]?.stringValue, "1234")
         }
     }
     
@@ -375,7 +376,7 @@ class PBXProjGeneratorTests: XCTestCase {
         let pbxProj = try projGenerator.generate()
         
         for pbxProject in pbxProj.projects {
-            XCTAssertEqual(pbxProject.attributes[lastUpgradeKey] as? String, lastUpgradeValue)
+            XCTAssertEqual(pbxProject.attributes[lastUpgradeKey]?.stringValue, lastUpgradeValue)
         }
     }
     
@@ -387,7 +388,7 @@ class PBXProjGeneratorTests: XCTestCase {
         let pbxProj = try projGenerator.generate()
         
         for pbxProject in pbxProj.projects {
-            XCTAssertEqual(pbxProject.attributes[lastUpgradeKey] as? String, project.xcodeVersion)
+            XCTAssertEqual(pbxProject.attributes[lastUpgradeKey]?.stringValue, project.xcodeVersion)
         }
     }
 

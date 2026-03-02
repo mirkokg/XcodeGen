@@ -14,7 +14,7 @@ extension Project {
         if let firstPlatform = targets.first?.platform,
            targets.allSatisfy({ $0.platform == firstPlatform })
         {
-            buildSettings["SDKROOT"] = firstPlatform.sdkRoot
+            buildSettings["SDKROOT"] = .string(firstPlatform.sdkRoot)
         }
 
         if let type = config.type, options.settingPresets.applyProject {
@@ -25,7 +25,7 @@ extension Project {
         // apply custom platform version
         for platform in Platform.allCases {
             if let version = options.deploymentTarget.version(for: platform) {
-                buildSettings[platform.deploymentTargetSetting] = version.deploymentTarget
+                buildSettings[platform.deploymentTargetSetting] = .string(version.deploymentTarget)
             }
         }
 
@@ -63,7 +63,7 @@ extension Project {
             
             if target.platform == .auto {
                 // this fix is necessary because the platform preset overrides the original value
-                buildSettings["SDKROOT"] = Platform.auto.rawValue
+                buildSettings["SDKROOT"] = .string(Platform.auto.rawValue)
             }
         }
         
@@ -75,16 +75,16 @@ extension Project {
                 let supportedPlatformBuildSettings = SettingsPresetFile.supportedDestination(supportedDestination).getBuildSettings()
                 buildSettings += supportedPlatformBuildSettings
                 
-                if let value = supportedPlatformBuildSettings?["SUPPORTED_PLATFORMS"] as? String {
+                if let value = supportedPlatformBuildSettings?["SUPPORTED_PLATFORMS"]?.stringValue {
                     supportedPlatforms += value.components(separatedBy: " ")
                 }
-                if let value = supportedPlatformBuildSettings?["TARGETED_DEVICE_FAMILY"] as? String {
+                if let value = supportedPlatformBuildSettings?["TARGETED_DEVICE_FAMILY"]?.stringValue {
                     targetedDeviceFamily += value.components(separatedBy: ",")
                 }
             }
             
-            buildSettings["SUPPORTED_PLATFORMS"] = supportedPlatforms.joined(separator: " ")
-            buildSettings["TARGETED_DEVICE_FAMILY"] = targetedDeviceFamily.joined(separator: ",")
+            buildSettings["SUPPORTED_PLATFORMS"] = .string(supportedPlatforms.joined(separator: " "))
+            buildSettings["TARGETED_DEVICE_FAMILY"] = .string(targetedDeviceFamily.joined(separator: ","))
         }
         
         // apply custom platform version
@@ -92,11 +92,11 @@ extension Project {
             if !specSupportedDestinations.isEmpty {
                 for supportedDestination in specSupportedDestinations {
                     if let platform = Platform(rawValue: supportedDestination.rawValue) {
-                        buildSettings[platform.deploymentTargetSetting] = version.deploymentTarget
+                        buildSettings[platform.deploymentTargetSetting] = .string(version.deploymentTarget)
                     }
                 }
             } else {
-                buildSettings[target.platform.deploymentTargetSetting] = version.deploymentTarget
+                buildSettings[target.platform.deploymentTargetSetting] = .string(version.deploymentTarget)
             }
         }
 
@@ -140,7 +140,7 @@ extension Project {
     }
 
     // combines all levels of a target's settings: target, target config, project, project config
-    public func getCombinedBuildSetting(_ setting: String, target: ProjectTarget, config: Config) -> Any? {
+    public func getCombinedBuildSetting(_ setting: String, target: ProjectTarget, config: Config) -> BuildSetting? {
         if let target = target as? Target,
             let value = getTargetBuildSettings(target: target, config: config)[setting] {
             return value
@@ -161,13 +161,11 @@ extension Project {
 
     public func getBoolBuildSetting(_ setting: String, target: ProjectTarget, config: Config) -> Bool? {
         guard let value = getCombinedBuildSetting(setting, target: target, config: config) else { return nil }
-
-        if let boolValue = value as? Bool {
+        if let boolValue = value.boolValue {
             return boolValue
-        } else if let stringValue = value as? String {
+        } else if let stringValue = value.stringValue {
             return stringValue == "YES"
         }
-
         return nil
     }
 
@@ -264,10 +262,11 @@ extension SettingsPresetFile {
             return nil
         }
 
-        guard let buildSettings = try? loadYamlDictionary(path: settingsPath) else {
+        guard let yamlDictionary = try? loadYamlDictionary(path: settingsPath) else {
             print("Error parsing \"\(name)\" settings")
             return nil
         }
+        let buildSettings = convertToBuildSettings(yamlDictionary)
         settingPresetSettings[path] = .cached(buildSettings)
         return buildSettings
     }

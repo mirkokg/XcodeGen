@@ -812,20 +812,20 @@ class SourceGeneratorTests: XCTestCase {
                 do {
                     let fileReference = try unwrap(pbxProj.getFileReference(paths: ["A", "file.resource1"], names: ["A", "file.resource1"]))
                     let buildFile = try unwrap(pbxProj.buildFiles.first(where: { $0.file === fileReference }))
-                    let settings = NSDictionary(dictionary: buildFile.settings ?? [:])
-                    try expect(settings) == [
-                        "ATTRIBUTES": ["a1", "a2"],
-                        "ASSET_TAGS": ["r1", "r2"],
+                    let expected: [String: BuildFileSetting] = [
+                        "ATTRIBUTES": .array(["a1", "a2"]),
+                        "ASSET_TAGS": .array(["r1", "r2"]),
                     ]
+                    try expect(buildFile.settings) == expected
                 }
                 do {
                     let fileReference = try unwrap(pbxProj.getFileReference(paths: ["A", "file.source1"], names: ["A", "file.source1"]))
                     let buildFile = try unwrap(pbxProj.buildFiles.first(where: { $0.file === fileReference }))
-                    let settings = NSDictionary(dictionary: buildFile.settings ?? [:])
-                    try expect(settings) == [
-                        "ATTRIBUTES": ["a1", "a2"],
-                        "COMPILER_FLAGS": "-c1 -c2",
-                        ]
+                    let expected: [String: BuildFileSetting] = [
+                        "ATTRIBUTES": .array(["a1", "a2"]),
+                        "COMPILER_FLAGS": .string("-c1 -c2"),
+                    ]
+                    try expect(buildFile.settings) == expected
                 }
             }
 
@@ -1041,7 +1041,8 @@ class SourceGeneratorTests: XCTestCase {
 
                 try pbxProj.expectFile(paths: ["A", definition], buildPhase: .sources)
 
-                if (buildFile.settings! as NSDictionary) != (["ATTRIBUTES": ["no_codegen"]] as NSDictionary) {
+                let expectedSettings: [String: BuildFileSetting] = ["ATTRIBUTES": .array(["no_codegen"])]
+                if buildFile.settings != expectedSettings {
                     throw failure("File does not contain no_codegen attribute")
                 }
             }
@@ -1266,11 +1267,11 @@ class SourceGeneratorTests: XCTestCase {
                     let resourceBuildFile2 = try unwrap(pbxProj.buildFiles.first(where: { $0.file == resourceFileReference2 }))
                     let sourceBuildFile = try unwrap(pbxProj.buildFiles.first(where: { $0.file == sourceFileReference }))
 
-                    if (resourceBuildFile.settings! as NSDictionary) != (["ASSET_TAGS": ["tag1", "tag2"]] as NSDictionary) {
+                    if resourceBuildFile.settings != ["ASSET_TAGS": .array(["tag1", "tag2"])] {
                         throw failure("File does not contain tag1 and tag2 ASSET_TAGS")
                     }
 
-                    if (resourceBuildFile2.settings! as NSDictionary) != (["ASSET_TAGS": ["tag2", "tag3"]] as NSDictionary) {
+                    if resourceBuildFile2.settings != ["ASSET_TAGS": .array(["tag2", "tag3"])] {
                         throw failure("File does not contain tag2 and tag3 ASSET_TAGS")
                     }
 
@@ -1282,7 +1283,7 @@ class SourceGeneratorTests: XCTestCase {
                         throw failure("PBXProject does not contain knownAssetTags")
                     }
 
-                    try expect(pbxProj.rootObject!.attributes["knownAssetTags"] as? [String]) == ["tag1", "tag2", "tag3"]
+                    try expect(pbxProj.rootObject!.attributes["knownAssetTags"]?.arrayValue) == ["tag1", "tag2", "tag3"]
                 }
                 
                 $0.it("Detects all locales present in a String Catalog") {
